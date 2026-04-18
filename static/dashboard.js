@@ -22,6 +22,18 @@ function el(id) { return document.getElementById(id); }
 function setText(id, v) { const e = el(id); if (e) e.textContent = v; }
 function setHTML(id, v) { const e = el(id); if (e) e.innerHTML = v; }
 
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function highlight(text, term) {
+    if (!term) return escHtml(text);
+    const idx = String(text).toLowerCase().indexOf(term.toLowerCase());
+    if (idx === -1) return escHtml(text);
+    const s = String(text);
+    return escHtml(s.slice(0, idx)) + '<mark>' + escHtml(s.slice(idx, idx + term.length)) + '</mark>' + escHtml(s.slice(idx + term.length));
+}
+
 async function api(path) {
     const r = await fetch(path);
     if (!r.ok) throw new Error(r.status);
@@ -57,10 +69,34 @@ document.querySelectorAll('.tab').forEach(btn => {
     });
 });
 
+// ── Poll control ──────────────────────────────────────────────────────────────
+
+let _paused = false;
+
+function togglePoll() {
+    _paused = !_paused;
+    const btn = el('poll-toggle');
+    btn.textContent = _paused ? '▶ Resume' : '⏸ Pause';
+    btn.classList.toggle('paused', _paused);
+}
+
+// ── Tab badges ────────────────────────────────────────────────────────────────
+
+function setBadge(tabId, count) {
+    const badge = el('badge-' + tabId);
+    if (!badge) return;
+    if (count > 0) {
+        badge.textContent = count;
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
+}
+
 // ── Alert system ─────────────────────────────────────────────────────────────
 
 const THRESHOLDS = { cpu: 90, memory: 85, disk: 90, swap: 80 };
-const _notified  = new Set(); // keys already browser-notified this session
+const _notified  = new Set();
 let   _dismissed = false;
 
 function checkAlerts(d) {
@@ -77,14 +113,12 @@ function checkAlerts(d) {
             alerts.set('disk:' + disk.mountpoint, `Disk ${disk.mountpoint} at ${disk.percent}%`);
     });
 
-    // Browser notifications for newly-triggered alerts
     alerts.forEach((msg, key) => {
         if (!_notified.has(key)) {
             _notified.add(key);
             pushNotification('Server Alert', msg);
         }
     });
-    // Clear notified set for alerts that resolved
     [..._notified].forEach(k => { if (!alerts.has(k)) _notified.delete(k); });
 
     if (alerts.size === 0) {
@@ -130,11 +164,9 @@ function drawCpuGraph(pct) {
     const ctx = canvas.getContext('2d');
     ctx.scale(devicePixelRatio, devicePixelRatio);
 
-    // Background
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, W, H);
 
-    // Grid lines
     ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 1;
     [25, 50, 75].forEach(y => {
@@ -145,7 +177,6 @@ function drawCpuGraph(pct) {
         ctx.fillText(y + '%', 3, py - 2);
     });
 
-    // Fill
     const step = W / (CPU_HISTORY.length - 1);
     ctx.beginPath();
     CPU_HISTORY.forEach((v, i) => {
@@ -156,10 +187,8 @@ function drawCpuGraph(pct) {
     ctx.lineTo((CPU_HISTORY.length - 1) * step, H);
     ctx.lineTo(0, H);
     ctx.closePath();
-    ctx.fillStyle = 'rgba(0,255,153,0.08)';
-    ctx.fill();
+    ctx.save(); ctx.globalAlpha = 0.08; ctx.fillStyle = '#00ff99'; ctx.fill(); ctx.restore();
 
-    // Line
     ctx.beginPath();
     CPU_HISTORY.forEach((v, i) => {
         const x = i * step;
@@ -194,12 +223,10 @@ async function fetchHealth() {
     try {
         const d = await api('/api/health');
 
-        // Header
         setText('hdr-uptime', '↑ ' + d.uptime.uptime);
         el('hdr-pulse').title = 'Updated ' + new Date().toLocaleTimeString();
         setText('hdr-host', window.location.hostname);
 
-        // CPU
         const cpu = d.cpu;
         setText('cpu-pct', cpu.percent.toFixed(1) + '%');
         setText('cpu-sub', cpu.count + ' cores · ' + cpu.freq_mhz + ' MHz · load ' + cpu.load_avg[0]);
@@ -207,23 +234,19 @@ async function fetchHealth() {
         drawCpuGraph(cpu.percent);
         el('card-cpu').style.borderColor = cpu.percent > 80 ? '#ff4444' : '#1e1e1e';
 
-        // Memory
         const mem = d.memory;
         setText('mem-pct', mem.percent.toFixed(1) + '%');
         setText('mem-sub', fmt_bytes(mem.used) + ' / ' + fmt_bytes(mem.total));
         drawMiniBar('mem-bar', mem.percent);
         el('card-mem').style.borderColor = mem.percent > 85 ? '#ff8c00' : '#1e1e1e';
 
-        // Swap
         setText('swap-pct', mem.swap_percent.toFixed(1) + '%');
         setText('swap-sub', fmt_bytes(mem.swap_used) + ' / ' + fmt_bytes(mem.swap_total));
         drawMiniBar('swap-bar', mem.swap_percent);
 
-        // Load
         setText('load-main', cpu.load_avg[0].toFixed(2));
         setText('load-sub', cpu.load_avg.join(' / ') + ' (1m/5m/15m)');
 
-        // Disks
         let diskHtml = '';
         d.disks.forEach(disk => {
             const color   = pct_color(disk.percent);
@@ -239,7 +262,6 @@ async function fetchHealth() {
         });
         setHTML('disk-list', diskHtml || '<span class="c-muted">No disks found.</span>');
 
-        // Temperatures
         const temps = d.temps || {};
         const tempEntries = Object.entries(temps);
         if (tempEntries.length) {
@@ -261,7 +283,6 @@ async function fetchHealth() {
             el('temps-panel').classList.add('hidden');
         }
 
-        // Disk I/O
         let dioHtml = '';
         const diskIo = d.disk_io || {};
         Object.entries(diskIo).forEach(([dev, s]) => {
@@ -276,7 +297,6 @@ async function fetchHealth() {
         });
         setHTML('disk-io-list', dioHtml || '<span class="c-muted">No disk I/O data.</span>');
 
-        // Network
         let netHtml = '';
         Object.entries(d.network).forEach(([iface, s]) => {
             netHtml += `<div class="net-item">
@@ -291,10 +311,8 @@ async function fetchHealth() {
         });
         setHTML('net-list', netHtml || '<span class="c-muted">No interfaces.</span>');
 
-        // Processes (live)
         if (activeTab === 'processes') renderProcesses(d.processes);
 
-        // Threshold alerts
         checkAlerts(d);
 
     } catch(e) {
@@ -304,18 +322,44 @@ async function fetchHealth() {
 
 // ── Processes ─────────────────────────────────────────────────────────────────
 
+let _lastProcesses = [];
+let _procSort = {col: 'cpu_percent', dir: -1};
+
+function sortProcs(col) {
+    if (_procSort.col === col) {
+        _procSort.dir = -_procSort.dir;
+    } else {
+        _procSort.col = col;
+        _procSort.dir = (col === 'name') ? 1 : -1;
+    }
+    document.querySelectorAll('.sort-icon').forEach(icon => { icon.textContent = ''; });
+    const icon = el('sort-' + col);
+    if (icon) icon.textContent = _procSort.dir === 1 ? ' ▲' : ' ▼';
+    renderProcesses();
+}
+
 function renderProcesses(procs) {
+    if (procs) _lastProcesses = procs;
     const filter = (el('proc-filter').value || '').toLowerCase();
-    const filtered = filter
-        ? procs.filter(p => p.name.toLowerCase().includes(filter) || p.cmdline.toLowerCase().includes(filter))
-        : procs;
+    let list = filter
+        ? _lastProcesses.filter(p =>
+            p.name.toLowerCase().includes(filter) ||
+            (p.cmdline || '').toLowerCase().includes(filter))
+        : _lastProcesses;
+
+    list = [...list].sort((a, b) => {
+        const av = a[_procSort.col], bv = b[_procSort.col];
+        if (typeof av === 'string') return av.localeCompare(bv) * _procSort.dir;
+        return ((av || 0) - (bv || 0)) * _procSort.dir;
+    });
+
     let html = '';
-    filtered.forEach(p => {
+    list.forEach(p => {
         const cpuColor = p.cpu_percent > 50 ? 'c-red' : p.cpu_percent > 20 ? 'c-yellow' : 'c-green';
         const memColor = p.memory_percent > 10 ? 'c-yellow' : '';
         html += `<tr>
             <td class="c-muted">${p.pid}</td>
-            <td class="c-cyan">${escHtml(p.name)}</td>
+            <td class="c-cyan">${highlight(p.name, filter)}</td>
             <td class="c-muted">${escHtml(p.username || '')}</td>
             <td class="${cpuColor}">${p.cpu_percent.toFixed(1)}%</td>
             <td class="${memColor}">${p.memory_percent.toFixed(1)}%</td>
@@ -327,7 +371,7 @@ function renderProcesses(procs) {
     setHTML('proc-body', html || '<tr><td colspan="8" class="c-muted">No processes.</td></tr>');
 }
 
-el('proc-filter').addEventListener('input', () => { /* re-render on next tick */ });
+el('proc-filter').addEventListener('input', () => renderProcesses());
 
 // ── Security ──────────────────────────────────────────────────────────────────
 
@@ -335,7 +379,6 @@ async function fetchSecurity() {
     try {
         const d = await api('/api/security');
 
-        // SSL
         const ssl = d.ssl;
         let sslHtml = '';
         if (ssl.valid) {
@@ -347,7 +390,6 @@ async function fetchSecurity() {
         }
         setHTML('ssl-info', sslHtml);
 
-        // Active sessions
         let usersHtml = '';
         if (d.users.length === 0) {
             usersHtml = '<tr><td colspan="5" class="c-muted">No active sessions</td></tr>';
@@ -365,9 +407,9 @@ async function fetchSecurity() {
         }
         setHTML('users-info', usersHtml);
 
-        // Failed SSH
         const ssh = d.failed_ssh;
         setHTML('ssh-total', ssh.total + ' total failures');
+        setBadge('security', ssh.top_ips.length);
         let ipsHtml = '';
         ssh.top_ips.forEach(([ip, count]) => {
             ipsHtml += `<div class="ip-row">
@@ -385,13 +427,11 @@ async function fetchSecurity() {
             .join('');
         setHTML('ssh-lines', linesHtml);
 
-        // Ports
         let portsHtml = d.ports.map(p =>
             `<tr><td class="c-cyan">${escHtml(p.local)}</td><td class="c-yellow">${escHtml(p.port)}</td><td class="c-muted">${escHtml(p.process)}</td></tr>`
         ).join('');
         setHTML('ports-body', portsHtml || '<tr><td colspan="3" class="c-muted">None</td></tr>');
 
-        // Connections
         const established = d.connections.filter(c => c.state === 'ESTAB');
         setHTML('conn-count', established.length + ' established');
         let connHtml = established.slice(0, 50).map(c =>
@@ -399,13 +439,10 @@ async function fetchSecurity() {
         ).join('');
         setHTML('conn-body', connHtml || '<tr><td colspan="4" class="c-muted">None</td></tr>');
 
-        // Last logins
         setHTML('last-logins', d.last_logins.map(l => `<p class="${l.startsWith('reboot') ? 'log-warn' : ''}">${escHtml(l)}</p>`).join(''));
 
-        // Sudo
         setHTML('sudo-list', d.sudo.map(l => `<p class="log-warn">${escHtml(l)}</p>`).join('') || '<p class="c-muted">No recent sudo usage.</p>');
 
-        // Fail2ban
         const f2b = d.fail2ban || {};
         if (!f2b.available) {
             setHTML('fail2ban-list', '<span class="c-muted">fail2ban not available.</span>');
@@ -424,9 +461,7 @@ async function fetchSecurity() {
                         f2bHtml += `<div class="ip-row">
                             <span class="ip-addr">${escHtml(ip)}</span>
                             <button class="btn btn-sm btn-ok"
-                                onclick="confirmAction('Unban <strong>${escHtml(ip)}</strong> from ${escHtml(jail.name)}?',
-                                async()=>{ const r=await post('/api/action',{action:'fail2ban_unban',jail:'${escHtml(jail.name)}',ip:'${escHtml(ip)}'});
-                                showResult('fail2ban-result',r); fetchSecurity(); })">Unban</button>
+                                onclick="f2bUnban('${escHtml(ip)}','${escHtml(jail.name)}')">Unban</button>
                         </div>`;
                     });
                 } else {
@@ -437,7 +472,6 @@ async function fetchSecurity() {
             setHTML('fail2ban-list', f2bHtml || '<span class="c-muted">No jails found.</span>');
         }
 
-        // OOM events
         const oom = d.oom_events || [];
         if (oom.length) {
             el('oom-panel').classList.remove('hidden');
@@ -447,7 +481,6 @@ async function fetchSecurity() {
             el('oom-panel').classList.add('hidden');
         }
 
-        // WP Rate limits
         let rlHtml = '';
         if (d.wp_rate_limits && d.wp_rate_limits.length) {
             d.wp_rate_limits.forEach(r => {
@@ -467,6 +500,14 @@ async function fetchSecurity() {
     } catch(e) { console.error('Security fetch error:', e); }
 }
 
+function f2bUnban(ip, jail) {
+    confirmAction(`Unban <strong>${escHtml(ip)}</strong> from ${escHtml(jail)}?`, async () => {
+        const r = await post('/api/action', {action: 'fail2ban_unban', jail, ip});
+        showResult('fail2ban-result', r);
+        fetchSecurity();
+    });
+}
+
 // ── Firewall ──────────────────────────────────────────────────────────────────
 
 async function fetchFirewall() {
@@ -476,8 +517,21 @@ async function fetchFirewall() {
         const badge = el('ufw-status-badge');
         badge.textContent = ufw.status;
         badge.className   = ufw.status === 'active' ? 'badge-green' : 'badge-red';
-        setHTML('ufw-rules', ufw.rules.map(r => `<p>${escHtml(r)}</p>`).join('') || '<p class="c-muted">No rules found.</p>');
-    } catch(e) {}
+
+        // Rules come as "[ 1] 80/tcp ALLOW IN Anywhere" — extract number and text
+        const rows = (ufw.rules || []).map(r => {
+            const m = r.match(/^\[\s*(\d+)\]\s*(.*)/);
+            return m ? {num: parseInt(m[1]), text: m[2].trim()} : {num: 0, text: r.trim()};
+        });
+        const tbody = rows.map(r =>
+            `<tr>
+                <td class="c-muted">${r.num}</td>
+                <td style="font-family:monospace;font-size:.8rem">${escHtml(r.text)}</td>
+                <td><button class="btn btn-sm btn-danger" onclick="deleteUfwRule(${r.num})">✕ Delete</button></td>
+            </tr>`
+        ).join('');
+        setHTML('ufw-rules-body', tbody || '<tr><td colspan="3" class="c-muted">No rules found.</td></tr>');
+    } catch(e) { console.error('Firewall fetch error:', e); }
 }
 
 function blockIP() {
@@ -499,9 +553,59 @@ function unblockIP() {
     });
 }
 function confirmBlock(ip) {
-    el('fw-ip-input').value = ip;
-    document.querySelector('[data-tab="firewall"]').click();
-    setTimeout(() => blockIP(), 100);
+    confirmAction(`Block <strong>${escHtml(ip)}</strong> via UFW?`, async () => {
+        const res = await post('/api/action', {action: 'block_ip', ip});
+        showResult('fw-result', res);
+        if (activeTab === 'firewall') fetchFirewall();
+        if (activeTab === 'security') fetchSecurity();
+        if (activeTab === 'apps')     fetchApps();
+    });
+}
+
+function addUfwRule() {
+    const act   = el('fw-rule-action').value;
+    const port  = el('fw-rule-port').value.trim();
+    const proto = el('fw-rule-proto').value;
+    const from  = el('fw-rule-from').value.trim();
+    if (!port) { showResult('fw-add-result', {success:false, message:'Port is required'}); return; }
+    confirmAction(`Add UFW rule: <strong>${act} ${escHtml(port)}/${proto}</strong>${from ? ' from ' + escHtml(from) : ''}?`, async () => {
+        const res = await post('/api/action', {action:'add_ufw_rule', act, port, proto, from_ip: from || 'any'});
+        showResult('fw-add-result', res);
+        if (res.success) fetchFirewall();
+    });
+}
+
+function deleteUfwRule(ruleNum) {
+    confirmAction(`Delete UFW rule <strong>#${ruleNum}</strong>? (Rule numbers shift after deletion — refresh before deleting multiple rules.)`, async () => {
+        const res = await post('/api/action', {action:'delete_ufw_rule', rule_num: ruleNum});
+        showResult('fw-result', res);
+        if (res.success) fetchFirewall();
+    });
+}
+
+async function runPing() {
+    const host = el('ping-host').value.trim();
+    if (!host) return;
+    const btn    = el('ping-btn');
+    const result = el('ping-result');
+    btn.disabled = true;
+    btn.textContent = '⏳ Pinging…';
+    result.classList.add('hidden');
+    try {
+        const r = await post('/api/action', {action: 'ping', host});
+        const lossColor = r.packet_loss === 0 ? 'c-green' : r.packet_loss === 100 ? 'c-red' : 'c-yellow';
+        result.innerHTML = `
+            <div class="ping-row"><span class="c-muted">Host</span><span class="c-cyan">${escHtml(r.host || host)}</span></div>
+            <div class="ping-row"><span class="c-muted">Packet loss</span><span class="${lossColor}">${r.packet_loss}%</span></div>
+            ${r.avg_rtt != null ? `<div class="ping-row"><span class="c-muted">Avg RTT</span><span class="c-text">${r.avg_rtt} ms</span></div>` : ''}
+            <div class="ping-row"><span class="c-muted">Status</span><span class="${r.success ? 'c-green' : 'c-red'}">${r.success ? '✓ reachable' : '✗ unreachable'}</span></div>`;
+        result.className = 'ping-result';
+    } catch(e) {
+        result.innerHTML = `<span class="c-red">Ping failed: ${escHtml(String(e))}</span>`;
+        result.className = 'ping-result';
+    }
+    btn.disabled = false;
+    btn.textContent = '▶ Ping';
 }
 
 // ── Services ──────────────────────────────────────────────────────────────────
@@ -509,6 +613,8 @@ function confirmBlock(ip) {
 async function fetchServices() {
     try {
         const d = await api('/api/services');
+        const inactive = Object.values(d).filter(s => s !== 'active').length;
+        setBadge('services', inactive);
         let html = '';
         Object.entries(d).forEach(([svc, status]) => {
             const dotCls = status === 'active' ? 'svc-active' : status === 'inactive' ? 'svc-inactive' : 'svc-unknown';
@@ -594,17 +700,12 @@ function showResult(id, res) {
     setTimeout(() => { e.className = 'action-result'; e.textContent = ''; }, 4000);
 }
 
-function escHtml(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
 // ── Apps tab ──────────────────────────────────────────────────────────────────
 
 async function fetchApps() {
     try {
         const d = await api('/api/apps');
 
-        // Apache
         const ap = d.apache;
         if (!ap.available) {
             setHTML('apache-info', '<span class="c-muted">Not available — enable mod_status at /server-status</span>');
@@ -618,7 +719,6 @@ async function fetchApps() {
             `);
         }
 
-        // MySQL
         const my = d.mysql;
         if (!my.available) {
             setHTML('mysql-info', '<span class="c-muted">Not available — check /etc/mysql/debian.cnf</span>');
@@ -632,7 +732,6 @@ async function fetchApps() {
             `);
         }
 
-        // Apt updates
         const apt = d.apt;
         if (!apt.available) {
             setHTML('apt-list', '<span class="c-muted">Could not check for updates.</span>');
@@ -652,7 +751,7 @@ async function fetchApps() {
             ).join('');
             setHTML('apt-list', html);
         }
-        // Apache log analysis
+
         const al = d.apache_log;
         if (!al || !al.available) {
             el('apache-log-panel').classList.add('hidden');
@@ -689,7 +788,7 @@ async function fetchApps() {
 // ── Admin tab ─────────────────────────────────────────────────────────────────
 
 async function fetchAdmin() {
-    await Promise.all([fetchCrontab(), fetchSshKeys()]);
+    await Promise.all([fetchCrontab(), fetchSshKeys(), fetchCertbot()]);
 }
 
 async function fetchCrontab() {
@@ -749,9 +848,45 @@ async function addSshKey() {
     if (res.success) { el('ssh-key-input').value = ''; fetchSshKeys(); }
 }
 
-// Add result element for fail2ban (appended inline in Security tab)
-document.querySelector('#tab-security').insertAdjacentHTML('beforeend',
-    '<div id="fail2ban-result" class="action-result" style="padding:0 20px 10px"></div>');
+// ── Certbot ───────────────────────────────────────────────────────────────────
+
+async function fetchCertbot() {
+    const panel = el('certbot-panel');
+    if (!panel) return;
+    try {
+        const d = await api('/api/certbot');
+        if (!d.available) {
+            panel.classList.add('hidden');
+            return;
+        }
+        panel.classList.remove('hidden');
+        if (!d.certs || d.certs.length === 0) {
+            setHTML('certbot-list', '<span class="c-muted">No certificates found.</span>');
+            return;
+        }
+        const html = d.certs.map(c => {
+            const expiry = c.expiry || '';
+            const isExpiring = expiry.includes('VALID:') && parseInt(expiry.match(/(\d+) day/)?.[1] || '999') < 30;
+            return `<div class="f2b-jail">
+                <div class="f2b-header">
+                    <span class="c-cyan">${escHtml(c.name)}</span>
+                    <span class="${isExpiring ? 'c-red' : 'c-green'}">${escHtml(expiry)}</span>
+                </div>
+                <div class="c-muted" style="font-size:.75rem;margin-bottom:8px">${escHtml(c.domains || '')}</div>
+                <button class="btn btn-sm btn-ok" onclick="renewCert('${escHtml(c.name)}')">↻ Renew</button>
+            </div>`;
+        }).join('');
+        setHTML('certbot-list', html);
+    } catch(e) { if (panel) panel.classList.add('hidden'); }
+}
+
+function renewCert(name) {
+    confirmAction(`Renew certificate <strong>${escHtml(name)}</strong>? This may take a moment.`, async () => {
+        const res = await post('/api/action', {action: 'renew_cert', cert_name: name});
+        showResult('certbot-result', res);
+        if (res.success) fetchCertbot();
+    });
+}
 
 // ── History charts ────────────────────────────────────────────────────────────
 
@@ -786,7 +921,7 @@ function drawHistChart(canvasId, rows, getter, color, label) {
     if (!canvas) return;
     const W  = canvas.offsetWidth || 700;
     const H  = 100;
-    const PB = 18; // bottom padding for time axis
+    const PB = 18;
     canvas.width  = W * devicePixelRatio;
     canvas.height = (H + PB) * devicePixelRatio;
     const ctx = canvas.getContext('2d');
@@ -795,7 +930,6 @@ function drawHistChart(canvasId, rows, getter, color, label) {
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, W, H + PB);
 
-    // Grid lines at 25/50/75/100
     [25, 50, 75, 100].forEach(y => {
         const py = H - (y / 100) * (H - 10) - 5;
         ctx.strokeStyle = 'rgba(255,255,255,0.04)';
@@ -809,7 +943,9 @@ function drawHistChart(canvasId, rows, getter, color, label) {
     const vals = rows.map(getter);
     const step = W / Math.max(rows.length - 1, 1);
 
-    // Fill
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = color;
     ctx.beginPath();
     vals.forEach((v, i) => {
         const x = i * step;
@@ -819,15 +955,9 @@ function drawHistChart(canvasId, rows, getter, color, label) {
     ctx.lineTo((vals.length - 1) * step, H);
     ctx.lineTo(0, H);
     ctx.closePath();
-    ctx.fillStyle = color.replace(')', ', 0.08)').replace('rgb', 'rgba').replace('#', 'rgba(').replace('rgba(', 'rgba(');
-    // simpler fill: use globalAlpha
-    ctx.save();
-    ctx.globalAlpha = 0.08;
-    ctx.fillStyle = color;
     ctx.fill();
     ctx.restore();
 
-    // Line
     ctx.beginPath();
     vals.forEach((v, i) => {
         const x = i * step;
@@ -841,7 +971,6 @@ function drawHistChart(canvasId, rows, getter, color, label) {
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Time axis: first and last timestamps
     if (rows.length >= 2) {
         const fmt = ts => new Date(ts * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
         ctx.fillStyle = 'rgba(255,255,255,0.3)';
@@ -883,7 +1012,6 @@ function drawHistNetChart(canvasId, rows) {
         ctx.shadowBlur = 0;
     };
 
-    // Grid
     [25, 50, 75, 100].forEach(pct => {
         const py = H - (pct / 100) * (H - 10) - 5;
         ctx.strokeStyle = 'rgba(255,255,255,0.04)';
@@ -965,9 +1093,13 @@ function closeJournal() {
     _journalSvc = '';
 }
 
+// Add result element for fail2ban (appended inline in Security tab)
+document.querySelector('#tab-security').insertAdjacentHTML('beforeend',
+    '<div id="fail2ban-result" class="action-result" style="padding:0 20px 10px"></div>');
+
 // ── Poll loop ─────────────────────────────────────────────────────────────────
 
 fetchHealth();
-setInterval(fetchHealth, 3000);
-setInterval(() => { if (activeTab === 'security') fetchSecurity(); }, 15000);
-setInterval(() => { if (activeTab === 'services') fetchServices(); }, 8000);
+setInterval(() => { if (!_paused) fetchHealth(); }, 3000);
+setInterval(() => { if (!_paused && activeTab === 'security')  fetchSecurity(); }, 15000);
+setInterval(() => { if (!_paused && activeTab === 'services')  fetchServices(); }, 8000);

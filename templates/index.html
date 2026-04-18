@@ -17,6 +17,7 @@
   <div class="hdr-right">
     <span class="uptime-badge" id="hdr-uptime">—</span>
     <span class="pulse" id="hdr-pulse" title="Last updated"></span>
+    <button class="btn poll-toggle" id="poll-toggle" onclick="togglePoll()" title="Pause auto-refresh">⏸ Pause</button>
     <a href="/logout" class="logout-btn">LOGOUT</a>
   </div>
 </header>
@@ -26,9 +27,9 @@
   <button class="tab active" data-tab="overview">Overview</button>
   <button class="tab" data-tab="history">History</button>
   <button class="tab" data-tab="processes">Processes</button>
-  <button class="tab" data-tab="security">Security</button>
+  <button class="tab" data-tab="security">Security <span class="tab-badge hidden" id="badge-security"></span></button>
   <button class="tab" data-tab="firewall">Firewall</button>
-  <button class="tab" data-tab="services">Services</button>
+  <button class="tab" data-tab="services">Services <span class="tab-badge hidden" id="badge-services"></span></button>
   <button class="tab" data-tab="apps">Apps</button>
   <button class="tab" data-tab="admin">Admin</button>
   <button class="tab" data-tab="audit">Audit</button>
@@ -149,7 +150,12 @@
     <div class="table-wrap">
       <table class="data-table" id="proc-table">
         <thead><tr>
-          <th>PID</th><th>Name</th><th>User</th><th>CPU%</th><th>MEM%</th><th>Status</th><th>Started</th><th>Action</th>
+          <th class="sortable" onclick="sortProcs('pid')">PID <span class="sort-icon" id="sort-pid"></span></th>
+          <th class="sortable" onclick="sortProcs('name')">Name <span class="sort-icon" id="sort-name"></span></th>
+          <th>User</th>
+          <th class="sortable" onclick="sortProcs('cpu_percent')">CPU% <span class="sort-icon" id="sort-cpu_percent">▼</span></th>
+          <th class="sortable" onclick="sortProcs('memory_percent')">MEM% <span class="sort-icon" id="sort-memory_percent"></span></th>
+          <th>Status</th><th>Started</th><th>Action</th>
         </tr></thead>
         <tbody id="proc-body"></tbody>
       </table>
@@ -260,16 +266,50 @@
   <div class="panel">
     <div class="panel-title">UFW Status <span id="ufw-status-badge"></span></div>
     <div class="fw-actions">
-      <input type="text" id="fw-ip-input" class="filter-input" placeholder="IP address to block/unblock…" style="width:260px">
+      <input type="text" id="fw-ip-input" class="filter-input" placeholder="IP to block/unblock…" style="width:220px">
       <button class="btn btn-danger" onclick="blockIP()">⛔ Block IP</button>
-      <button class="btn btn-ok" onclick="unblockIP()">✓ Unblock IP</button>
+      <button class="btn btn-ok"     onclick="unblockIP()">✓ Unblock IP</button>
     </div>
     <div id="fw-result" class="action-result"></div>
   </div>
 
   <div class="panel">
-    <div class="panel-title">Firewall Rules</div>
-    <div id="ufw-rules" class="log-scroll" style="max-height:400px"></div>
+    <div class="panel-title">Add Rule</div>
+    <div class="fw-actions" style="flex-wrap:wrap">
+      <select id="fw-rule-action" class="filter-input">
+        <option value="allow">Allow</option>
+        <option value="deny">Deny</option>
+        <option value="reject">Reject</option>
+      </select>
+      <input type="text" id="fw-rule-port"  class="filter-input" placeholder="Port (e.g. 80, 8080:8090)" style="width:180px">
+      <select id="fw-rule-proto" class="filter-input">
+        <option value="tcp">TCP</option>
+        <option value="udp">UDP</option>
+        <option value="any">Any</option>
+      </select>
+      <input type="text" id="fw-rule-from"  class="filter-input" placeholder="From IP/CIDR (optional)" style="width:200px">
+      <button class="btn btn-ok" onclick="addUfwRule()">+ Add Rule</button>
+    </div>
+    <div id="fw-add-result" class="action-result"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Rules <button class="btn btn-sm" onclick="fetchFirewall()" style="margin-left:8px">↻</button></div>
+    <div class="table-wrap">
+      <table class="data-table" id="ufw-rules-table">
+        <thead><tr><th>#</th><th>Rule</th><th></th></tr></thead>
+        <tbody id="ufw-rules-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Ping / Connectivity Check</div>
+    <div class="fw-actions">
+      <input type="text" id="ping-host" class="filter-input" placeholder="hostname or IP" style="width:240px">
+      <button class="btn" id="ping-btn" onclick="runPing()">▶ Ping</button>
+    </div>
+    <div id="ping-result" class="ping-result hidden"></div>
   </div>
 
 </div>
@@ -367,6 +407,15 @@
       </div>
       <div id="ssh-key-result" class="action-result"></div>
     </div>
+  </div>
+
+  <!-- Certbot -->
+  <div class="panel" id="certbot-panel">
+    <div class="panel-title">SSL Certificates (Certbot)
+      <button class="btn btn-sm" onclick="fetchCertbot()" style="margin-left:8px">↻ Refresh</button>
+    </div>
+    <div id="certbot-list"><span class="c-muted">Loading…</span></div>
+    <div id="certbot-result" class="action-result" style="margin-top:10px"></div>
   </div>
 
 </div>

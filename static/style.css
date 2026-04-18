@@ -231,9 +231,46 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); font
 /* ── Disk inodes ── */
 .disk-inode { font-size: .7rem; color: var(--muted); margin-top: 3px; }
 
+/* ── Poll toggle ── */
+.poll-toggle { border-color: rgba(0,212,255,.3); color: var(--cyan); }
+.poll-toggle:hover { background: rgba(0,212,255,.08); }
+.poll-toggle.paused { border-color: rgba(255,140,0,.4); color: var(--orange); }
+.poll-toggle.paused:hover { background: rgba(255,140,0,.1); }
+
+/* ── Tab badges ── */
+.tab-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--red); color: #fff; border-radius: 10px;
+  font-size: .6rem; font-weight: bold; min-width: 16px; height: 16px;
+  padding: 0 4px; margin-left: 4px; vertical-align: middle; line-height: 1;
+}
+
+/* ── Sortable columns ── */
+.sortable { cursor: pointer; user-select: none; }
+.sortable:hover { color: var(--text); }
+.sort-icon { color: var(--cyan); font-size: .7em; }
+
+/* ── Search highlight ── */
+mark { background: rgba(255,251,5,.25); color: var(--yellow); border-radius: 2px; padding: 0 1px; }
+
+/* ── Ping result ── */
+.ping-result {
+  background: #0a0a0a; border: 1px solid var(--border2); border-radius: 4px;
+  padding: 12px 16px; margin-top: 10px; font-size: .82rem;
+}
+.ping-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #161616; }
+.ping-row:last-child { border-bottom: none; }
+
+/* ── Card hover effects ── */
+.stat-card { transition: border-color .25s, box-shadow .25s; }
+.stat-card:hover { box-shadow: 0 0 12px rgba(0,255,153,.06); }
+.panel { transition: border-color .25s; }
+.panel:hover { border-color: #2a2a2a; }
+
 /* ── Colour helpers ── */
 .c-green  { color: var(--green) !important; }
 .c-yellow { color: var(--yellow) !important; }
 .c-red    { color: var(--red) !important; }
 .c-cyan   { color: var(--cyan) !important; }
 .c-muted  { color: var(--muted) !important; }
+.c-text   { color: var(--text) !important; }
