@@ -166,6 +166,84 @@ def remove_ssh_key(raw):
         f.writelines(filtered)
     return {'success': True, 'message': 'SSH key removed'}
 
+_PORT_RE  = re.compile(r'^\d{1,5}(?::\d{1,5})?$|^(?:http|https|ssh|ftp|smtp|dns|mysql|postgresql)$')
+_CIDR_RE  = re.compile(r'^(\d{1,3}\.){3}\d{1,3}(?:/\d{1,2})?$')
+_HOST_RE  = re.compile(r'^[a-zA-Z0-9.\-]{1,253}$')
+
+def add_ufw_rule(action, port, proto='tcp', from_ip='any'):
+    if action not in ('allow', 'deny', 'reject'):
+        return {'success': False, 'message': 'Action must be allow, deny, or reject'}
+    port = str(port).strip()
+    if not _PORT_RE.match(port):
+        return {'success': False, 'message': 'Invalid port'}
+    if proto not in ('tcp', 'udp', 'any'):
+        return {'success': False, 'message': 'Protocol must be tcp, udp, or any'}
+    if from_ip and from_ip != 'any':
+        if not _CIDR_RE.match(from_ip):
+            return {'success': False, 'message': 'Invalid IP or CIDR'}
+    cmd = ['ufw', action]
+    if from_ip and from_ip != 'any':
+        cmd += ['from', from_ip, 'to', 'any', 'port', port, 'proto', proto]
+    elif proto == 'any':
+        cmd.append(port)
+    else:
+        cmd.append(f'{port}/{proto}')
+    return _run(cmd)
+
+def delete_ufw_rule(rule_num):
+    try:
+        n = int(rule_num)
+        if n < 1 or n > 200:
+            raise ValueError
+    except (ValueError, TypeError):
+        return {'success': False, 'message': 'Invalid rule number'}
+    return _run(['ufw', '--force', 'delete', str(n)])
+
+def ping_host(host):
+    host = host.strip()
+    if not _HOST_RE.match(host):
+        return {'success': False, 'message': 'Invalid hostname or IP'}
+    r = subprocess.run(['ping', '-c', '4', '-W', '2', host],
+                       capture_output=True, text=True, timeout=15)
+    out = r.stdout + r.stderr
+    loss_m = re.search(r'(\d+)% packet loss', out)
+    rtt_m  = re.search(r'rtt min/avg/max[^=]+=\s*[\d.]+/([\d.]+)/', out)
+    loss   = int(loss_m.group(1)) if loss_m else 100
+    rtt    = float(rtt_m.group(1)) if rtt_m else None
+    return {
+        'success':     r.returncode == 0,
+        'host':        host,
+        'packet_loss': loss,
+        'avg_rtt':     rtt,
+        'message':     f"{100-loss}% packets received, avg {rtt}ms RTT" if rtt else out.strip().split('\n')[-1],
+        'output':      out.strip(),
+    }
+
+def get_certbot_certs():
+    r = subprocess.run(['certbot', 'certificates'], capture_output=True, text=True, timeout=15)
+    if r.returncode != 0 and 'No certificates found' not in r.stdout + r.stderr:
+        return {'available': False}
+    certs, cur = [], {}
+    for line in (r.stdout + r.stderr).split('\n'):
+        l = line.strip()
+        if l.startswith('Certificate Name:'):
+            if cur: certs.append(cur)
+            cur = {'name': l.split(':', 1)[1].strip()}
+        elif l.startswith('Domains:'):
+            cur['domains'] = l.split(':', 1)[1].strip()
+        elif l.startswith('Expiry Date:'):
+            cur['expiry'] = l.split(':', 1)[1].strip()
+        elif l.startswith('Certificate Path:'):
+            cur['cert_path'] = l.split(':', 1)[1].strip()
+    if cur: certs.append(cur)
+    return {'available': True, 'certs': certs}
+
+def renew_cert(cert_name=''):
+    cmd = ['certbot', 'renew', '--non-interactive']
+    if cert_name:
+        cmd += ['--cert-name', cert_name]
+    return _run(cmd, timeout=120)
+
 def get_log_tail(log_key, lines=150):
     path = config.LOG_PATHS.get(log_key)
     if not path or not os.path.exists(path):

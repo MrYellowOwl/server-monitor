@@ -162,6 +162,11 @@ def api_crontab():
 def api_ssh_keys():
     return jsonify(actions.get_ssh_keys())
 
+@app.route('/api/certbot')
+@require_auth
+def api_certbot():
+    return jsonify(actions.get_certbot_certs())
+
 # ── API — Actions ─────────────────────────────────────────────────────────────
 
 @app.route('/api/action', methods=['POST'])
@@ -214,6 +219,20 @@ def api_action():
         audit.log('remove_ssh_key', d.get('raw','')[:40] + '…', ip=ip, success=res['success'])
         if res['success']:
             alerts.send('🗑️ SSH key removed')
+        return jsonify(res)
+    elif action == 'add_ufw_rule':
+        res = actions.add_ufw_rule(d.get('act',''), d.get('port',''), d.get('proto','tcp'), d.get('from_ip','any'))
+        audit.log('add_ufw_rule', f"{d.get('act')} {d.get('port')}/{d.get('proto')} from {d.get('from_ip','any')}", ip=ip, success=res['success'])
+        return jsonify(res)
+    elif action == 'delete_ufw_rule':
+        res = actions.delete_ufw_rule(d.get('rule_num'))
+        audit.log('delete_ufw_rule', f"rule #{d.get('rule_num')}", ip=ip, success=res['success'])
+        return jsonify(res)
+    elif action == 'ping':
+        return jsonify(actions.ping_host(d.get('host', '')))
+    elif action == 'renew_cert':
+        res = actions.renew_cert(d.get('cert_name', ''))
+        audit.log('renew_cert', d.get('cert_name',''), ip=ip, success=res['success'])
         return jsonify(res)
     return jsonify({'success': False, 'message': 'Unknown action'}), 400
 
