@@ -1,0 +1,239 @@
+/* Server Monitor — Dark Terminal Theme */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #0d0d0d;
+  --panel:    #111;
+  --border:   #1e1e1e;
+  --border2:  #2a2a2a;
+  --text:     #c8c8c8;
+  --muted:    #555;
+  --green:    #00ff99;
+  --yellow:   #fffb05;
+  --red:      #ff4444;
+  --orange:   #ff8c00;
+  --cyan:     #00d4ff;
+  --font:     'Courier New', Courier, monospace;
+}
+
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; }
+
+/* ── Header ── */
+.hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 20px; background: #0a0a0a;
+  border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
+}
+.logo     { color: var(--green); font-size: 1rem; font-weight: bold; letter-spacing: 2px; margin-right: 16px; }
+.host     { color: var(--muted); font-size: .8rem; }
+.hdr-right { display: flex; align-items: center; gap: 14px; }
+.uptime-badge { color: var(--muted); font-size: .75rem; }
+.pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+.logout-btn { color: var(--muted); text-decoration: none; font-size: .8rem; border: 1px solid #333; padding: 4px 10px; border-radius: 3px; transition: .2s; }
+.logout-btn:hover { color: var(--red); border-color: var(--red); }
+
+/* ── Tabs ── */
+.tabs { display: flex; gap: 2px; padding: 12px 20px 0; background: #0a0a0a; border-bottom: 1px solid var(--border); }
+.tab {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  padding: 8px 18px; border-radius: 4px 4px 0 0; cursor: pointer;
+  font-family: var(--font); font-size: .8rem; letter-spacing: 1px;
+  text-transform: uppercase; border-bottom: none; transition: .2s;
+}
+.tab:hover  { color: var(--text); border-color: #333; }
+.tab.active { background: var(--panel); color: var(--green); border-color: var(--border); }
+
+/* ── Panes ── */
+.tab-pane { padding: 20px; }
+.hidden   { display: none !important; }
+
+/* ── Stat cards ── */
+.stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+@media(max-width:900px){ .stat-row { grid-template-columns: 1fr 1fr; } }
+.stat-card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 5px; padding: 14px;
+}
+.stat-label { font-size: .7rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+.stat-main  { font-size: 1.8rem; font-weight: bold; color: var(--green); line-height: 1; }
+.stat-sub   { font-size: .72rem; color: var(--muted); margin-top: 4px; margin-bottom: 8px; }
+.mini-bar   { width: 100%; height: 6px; display: block; border-radius: 3px; overflow: hidden; }
+
+/* ── Panels ── */
+.panel {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 5px;
+  padding: 16px; margin-bottom: 14px;
+}
+.panel-title {
+  font-size: .78rem; color: var(--green); letter-spacing: 1px; text-transform: uppercase;
+  margin-bottom: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.panel-hint { color: var(--muted); font-size: .7rem; text-transform: none; letter-spacing: 0; }
+
+/* ── Tables ── */
+.table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.data-table th { color: var(--muted); text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border2); font-weight: normal; text-transform: uppercase; font-size: .7rem; letter-spacing: .5px; white-space: nowrap; }
+.data-table td { padding: 6px 10px; border-bottom: 1px solid #161616; white-space: nowrap; }
+.data-table tr:hover td { background: #161616; }
+.data-table tr:last-child td { border-bottom: none; }
+
+/* ── Disk bars ── */
+.disk-item  { margin-bottom: 10px; }
+.disk-label { display: flex; justify-content: space-between; font-size: .78rem; margin-bottom: 3px; color: var(--text); }
+.disk-bar-bg{ height: 6px; background: #1e1e1e; border-radius: 3px; overflow: hidden; }
+.disk-bar-fg{ height: 100%; border-radius: 3px; transition: width .4s; }
+
+/* ── Network ── */
+.net-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #161616; font-size: .8rem; }
+.net-item:last-child { border-bottom: none; }
+.net-iface { color: var(--cyan); }
+.net-stats  { color: var(--muted); font-size: .75rem; display: flex; gap: 20px; }
+.net-val    { color: var(--text); }
+
+/* ── Log scroll ── */
+.log-scroll { max-height: 260px; overflow-y: auto; font-size: .72rem; color: #888; line-height: 1.6; }
+.log-big    { max-height: 520px; }
+.log-scroll p { padding: 1px 0; border-bottom: 1px solid #0f0f0f; word-break: break-all; }
+.log-scroll p:last-child { border-bottom: none; }
+.log-err  { color: #ff6464; }
+.log-warn { color: var(--orange); }
+.log-ok   { color: var(--green); }
+
+/* ── Security page ── */
+.sec-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+@media(max-width:700px){ .sec-row { grid-template-columns: 1fr; } }
+.sec-mini  { margin-bottom: 0; }
+.two-col   { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media(max-width:700px){ .two-col { grid-template-columns: 1fr; } }
+.sub-title { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+
+/* ── IP table ── */
+.ip-row    { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #161616; font-size: .78rem; }
+.ip-addr   { color: var(--cyan); font-family: var(--font); }
+.ip-count  { color: var(--red); font-weight: bold; }
+.ip-actions{ display: flex; gap: 6px; }
+
+/* ── Badges ── */
+.badge     { background: #1e1e1e; color: var(--text); padding: 2px 8px; border-radius: 10px; font-size: .7rem; }
+.badge-red { background: rgba(255,68,68,.15); color: var(--red); padding: 2px 8px; border-radius: 10px; font-size: .7rem; }
+.badge-green{ background: rgba(0,255,153,.15); color: var(--green); padding: 2px 8px; border-radius: 10px; font-size: .7rem; }
+.badge-yellow{ background: rgba(255,251,5,.1); color: var(--yellow); padding: 2px 8px; border-radius: 10px; font-size: .7rem; }
+
+/* ── Buttons ── */
+.btn { background: #1a1a1a; border: 1px solid var(--border2); color: var(--text); padding: 6px 14px; border-radius: 4px; cursor: pointer; font-family: var(--font); font-size: .75rem; letter-spacing: .5px; transition: .2s; }
+.btn:hover       { border-color: #444; background: #222; }
+.btn-danger      { border-color: rgba(255,68,68,.4); color: var(--red); }
+.btn-danger:hover{ background: rgba(255,68,68,.1); }
+.btn-ok          { border-color: rgba(0,255,153,.3); color: var(--green); }
+.btn-ok:hover    { background: rgba(0,255,153,.08); }
+.btn-sm  { padding: 3px 8px; font-size: .7rem; }
+
+/* ── Firewall actions ── */
+.fw-actions { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+
+/* ── Filter input ── */
+.filter-input {
+  background: #0d0d0d; border: 1px solid var(--border2); color: var(--text);
+  padding: 6px 12px; border-radius: 4px; font-family: var(--font); font-size: .8rem; outline: none;
+  transition: border .2s;
+}
+.filter-input:focus { border-color: var(--green); }
+
+/* ── Action result ── */
+.action-result { margin-bottom: 12px; font-size: .8rem; min-height: 20px; }
+.action-result.ok  { color: var(--green); }
+.action-result.err { color: var(--red); }
+
+/* ── Service status dots ── */
+.svc-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.svc-active   { background: var(--green); }
+.svc-inactive { background: var(--red); }
+.svc-unknown  { background: var(--muted); }
+.svc-actions  { display: flex; gap: 6px; }
+
+/* ── SSL card ── */
+.ssl-ok   { color: var(--green); }
+.ssl-warn { color: var(--orange); }
+.ssl-bad  { color: var(--red); }
+.ssl-row  { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #161616; font-size: .8rem; }
+
+/* ── Modal ── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+.modal { background: #111; border: 1px solid #333; border-radius: 6px; padding: 28px; min-width: 340px; }
+.modal-msg  { color: var(--text); margin-bottom: 20px; line-height: 1.6; font-size: .85rem; }
+.modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* ── CPU graph ── */
+#cpu-graph { width: 100%; display: block; background: #0a0a0a; border-radius: 4px; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: #0a0a0a; }
+::-webkit-scrollbar-thumb  { background: #2a2a2a; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #444; }
+
+/* ── History charts ── */
+.hist-range      { display: flex; gap: 4px; margin-left: auto; }
+.hist-btn.active { border-color: var(--green); color: var(--green); }
+.hist-chart-wrap { margin-bottom: 20px; }
+.hist-chart-label{ font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+.hist-canvas     { width: 100%; display: block; background: #0a0a0a; border-radius: 4px; }
+
+/* ── Alert bar ── */
+.alert-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 20px; background: rgba(255,68,68,.12);
+  border-bottom: 1px solid rgba(255,68,68,.3);
+  position: sticky; top: 45px; z-index: 90;
+}
+.alert-label { color: var(--red); font-size: .72rem; font-weight: bold; letter-spacing: 1px; white-space: nowrap; }
+.alert-items { display: flex; flex-wrap: wrap; gap: 10px; flex: 1; }
+.alert-item  { color: var(--red); font-size: .75rem; background: rgba(255,68,68,.1); padding: 2px 10px; border-radius: 3px; border: 1px solid rgba(255,68,68,.25); }
+.alert-dismiss { background: none; border: none; color: var(--muted); cursor: pointer; font-size: .9rem; padding: 0 4px; }
+.alert-dismiss:hover { color: var(--red); }
+
+/* ── Disk I/O ── */
+.disk-io-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #161616; font-size: .78rem; }
+.disk-io-item:last-child { border-bottom: none; }
+.disk-io-dev  { color: var(--cyan); min-width: 60px; }
+.disk-io-stats { color: var(--muted); display: flex; gap: 20px; }
+.disk-io-val   { color: var(--text); }
+
+/* ── Temperatures ── */
+.temp-item  { display: inline-flex; align-items: center; gap: 6px; margin: 0 16px 8px 0; font-size: .8rem; }
+.temp-label { color: var(--muted); }
+.temp-val   { font-weight: bold; font-size: 1rem; }
+
+/* ── Fail2ban ── */
+.f2b-jail   { border: 1px solid var(--border2); border-radius: 4px; padding: 10px 12px; margin-bottom: 10px; }
+.f2b-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: .8rem; }
+
+/* ── Apps tab ── */
+.kv-row     { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #161616; font-size: .8rem; }
+.kv-row:last-child { border-bottom: none; }
+.apt-item   { padding: 4px 0; font-size: .78rem; border-bottom: 1px solid #161616; display: flex; align-items: center; gap: 8px; }
+.apt-item:last-child { border-bottom: none; }
+.apt-security { background: rgba(255,68,68,.04); }
+
+/* ── Admin tab ── */
+.admin-form { border-top: 1px solid var(--border2); padding-top: 14px; }
+.admin-row  { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.key-textarea { width: 100%; height: 70px; resize: vertical; font-size: .75rem; }
+
+/* ── Default password warning ── */
+.default-pw-warn {
+  background: rgba(255,140,0,.15); border-bottom: 1px solid rgba(255,140,0,.4);
+  color: var(--orange); padding: 9px 20px; font-size: .8rem;
+}
+.default-pw-warn code { background: rgba(255,140,0,.2); padding: 1px 6px; border-radius: 3px; }
+
+/* ── Disk inodes ── */
+.disk-inode { font-size: .7rem; color: var(--muted); margin-top: 3px; }
+
+/* ── Colour helpers ── */
+.c-green  { color: var(--green) !important; }
+.c-yellow { color: var(--yellow) !important; }
+.c-red    { color: var(--red) !important; }
+.c-cyan   { color: var(--cyan) !important; }
+.c-muted  { color: var(--muted) !important; }

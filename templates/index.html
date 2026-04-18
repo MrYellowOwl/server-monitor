@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Server Monitor</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- Header -->
+<header class="hdr">
+  <div class="hdr-left">
+    <span class="logo">⬡ SERVER MONITOR</span>
+    <span class="host" id="hdr-host">loading…</span>
+  </div>
+  <div class="hdr-right">
+    <span class="uptime-badge" id="hdr-uptime">—</span>
+    <span class="pulse" id="hdr-pulse" title="Last updated"></span>
+    <a href="/logout" class="logout-btn">LOGOUT</a>
+  </div>
+</header>
+
+<!-- Tabs -->
+<nav class="tabs">
+  <button class="tab active" data-tab="overview">Overview</button>
+  <button class="tab" data-tab="history">History</button>
+  <button class="tab" data-tab="processes">Processes</button>
+  <button class="tab" data-tab="security">Security</button>
+  <button class="tab" data-tab="firewall">Firewall</button>
+  <button class="tab" data-tab="services">Services</button>
+  <button class="tab" data-tab="apps">Apps</button>
+  <button class="tab" data-tab="admin">Admin</button>
+  <button class="tab" data-tab="audit">Audit</button>
+  <button class="tab" data-tab="logs">Logs</button>
+</nav>
+
+{% if default_password %}
+<div class="default-pw-warn">
+  ⚠ You are using the default password. Set <code>SM_PASSWORD</code> in the systemd service file immediately.
+</div>
+{% endif %}
+
+<!-- Alert bar -->
+<div id="alert-bar" class="alert-bar hidden">
+  <span class="alert-label">⚠ ALERT</span>
+  <div id="alert-items" class="alert-items"></div>
+  <button class="alert-dismiss" onclick="dismissAlerts()">✕</button>
+</div>
+
+<!-- ── OVERVIEW ─────────────────────────────────────────────────── -->
+<div id="tab-overview" class="tab-pane active">
+
+  <div class="stat-row">
+    <div class="stat-card" id="card-cpu">
+      <div class="stat-label">CPU</div>
+      <div class="stat-main" id="cpu-pct">—</div>
+      <div class="stat-sub" id="cpu-sub">—</div>
+      <canvas class="mini-bar" id="cpu-bar"></canvas>
+    </div>
+    <div class="stat-card" id="card-mem">
+      <div class="stat-label">MEMORY</div>
+      <div class="stat-main" id="mem-pct">—</div>
+      <div class="stat-sub" id="mem-sub">—</div>
+      <canvas class="mini-bar" id="mem-bar"></canvas>
+    </div>
+    <div class="stat-card" id="card-swap">
+      <div class="stat-label">SWAP</div>
+      <div class="stat-main" id="swap-pct">—</div>
+      <div class="stat-sub" id="swap-sub">—</div>
+      <canvas class="mini-bar" id="swap-bar"></canvas>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">LOAD AVG</div>
+      <div class="stat-main" id="load-main">—</div>
+      <div class="stat-sub" id="load-sub">1m / 5m / 15m</div>
+    </div>
+  </div>
+
+  <!-- CPU history graph -->
+  <div class="panel">
+    <div class="panel-title">CPU History <span class="panel-hint">(last 60s)</span></div>
+    <canvas id="cpu-graph" height="80"></canvas>
+  </div>
+
+  <!-- Disks -->
+  <div class="panel">
+    <div class="panel-title">Disk Usage</div>
+    <div id="disk-list"></div>
+  </div>
+
+  <!-- Temperatures -->
+  <div class="panel" id="temps-panel">
+    <div class="panel-title">Temperatures</div>
+    <div id="temps-list"><span class="c-muted">No sensor data available.</span></div>
+  </div>
+
+  <!-- Disk I/O -->
+  <div class="panel">
+    <div class="panel-title">Disk I/O</div>
+    <div id="disk-io-list"></div>
+  </div>
+
+  <!-- Network -->
+  <div class="panel">
+    <div class="panel-title">Network I/O</div>
+    <div id="net-list"></div>
+  </div>
+
+</div>
+
+<!-- ── HISTORY ──────────────────────────────────────────────────── -->
+<div id="tab-history" class="tab-pane hidden">
+  <div class="panel">
+    <div class="panel-title">
+      Metrics History
+      <div class="hist-range">
+        <button class="btn btn-sm hist-btn active" data-h="1">1h</button>
+        <button class="btn btn-sm hist-btn" data-h="6">6h</button>
+        <button class="btn btn-sm hist-btn" data-h="24">24h</button>
+      </div>
+      <span class="panel-hint" id="hist-hint"></span>
+    </div>
+    <div class="hist-chart-wrap">
+      <div class="hist-chart-label">CPU %</div>
+      <canvas id="hist-cpu" class="hist-canvas" height="100"></canvas>
+    </div>
+    <div class="hist-chart-wrap">
+      <div class="hist-chart-label">Memory %</div>
+      <canvas id="hist-mem" class="hist-canvas" height="100"></canvas>
+    </div>
+    <div class="hist-chart-wrap">
+      <div class="hist-chart-label">Swap %</div>
+      <canvas id="hist-swap" class="hist-canvas" height="100"></canvas>
+    </div>
+    <div class="hist-chart-wrap">
+      <div class="hist-chart-label">Network (↑ sent &nbsp;↓ recv)</div>
+      <canvas id="hist-net" class="hist-canvas" height="100"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ── PROCESSES ─────────────────────────────────────────────────── -->
+<div id="tab-processes" class="tab-pane hidden">
+  <div class="panel">
+    <div class="panel-title">Top Processes
+      <input type="text" id="proc-filter" class="filter-input" placeholder="Filter by name…">
+    </div>
+    <div class="table-wrap">
+      <table class="data-table" id="proc-table">
+        <thead><tr>
+          <th>PID</th><th>Name</th><th>User</th><th>CPU%</th><th>MEM%</th><th>Status</th><th>Started</th><th>Action</th>
+        </tr></thead>
+        <tbody id="proc-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── SECURITY ──────────────────────────────────────────────────── -->
+<div id="tab-security" class="tab-pane hidden">
+
+  <div class="sec-row">
+    <!-- SSL -->
+    <div class="panel sec-mini">
+      <div class="panel-title">SSL Certificate</div>
+      <div id="ssl-info">Loading…</div>
+    </div>
+    <!-- Logged-in users -->
+    <div class="panel sec-mini">
+      <div class="panel-title">Active Sessions</div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>User</th><th>From</th><th>Login</th><th>Idle</th><th>Command</th></tr></thead>
+          <tbody id="users-info"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Failed SSH -->
+  <div class="panel">
+    <div class="panel-title">Failed SSH Logins
+      <span id="ssh-total" class="badge-red"></span>
+    </div>
+    <div class="two-col">
+      <div>
+        <div class="sub-title">Top Offending IPs</div>
+        <div id="ssh-ips"></div>
+      </div>
+      <div>
+        <div class="sub-title">Recent Attempts</div>
+        <div id="ssh-lines" class="log-scroll"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Open Ports -->
+  <div class="panel">
+    <div class="panel-title">Listening Ports</div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Address</th><th>Port</th><th>Process</th></tr></thead>
+        <tbody id="ports-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Active Connections -->
+  <div class="panel">
+    <div class="panel-title">Active Connections <span id="conn-count" class="badge"></span></div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>State</th><th>Local</th><th>Remote</th><th>Process</th></tr></thead>
+        <tbody id="conn-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Last Logins -->
+  <div class="panel">
+    <div class="panel-title">Last Logins</div>
+    <div id="last-logins" class="log-scroll"></div>
+  </div>
+
+  <!-- Sudo usage -->
+  <div class="panel">
+    <div class="panel-title">Recent sudo Usage</div>
+    <div id="sudo-list" class="log-scroll"></div>
+  </div>
+
+  <!-- Fail2ban -->
+  <div class="panel">
+    <div class="panel-title">Fail2ban</div>
+    <div id="fail2ban-list"><span class="c-muted">Loading…</span></div>
+  </div>
+
+  <!-- OOM Events -->
+  <div class="panel" id="oom-panel">
+    <div class="panel-title">OOM Killer Events</div>
+    <div id="oom-list" class="log-scroll"></div>
+  </div>
+
+  <!-- WP Rate Limits -->
+  <div class="panel">
+    <div class="panel-title">CTF / WordPress Rate Limits</div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>IP / Identifier</th><th>Action</th><th>Hits</th><th>Window Start</th><th>Action</th></tr></thead>
+        <tbody id="wp-rl-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── FIREWALL ──────────────────────────────────────────────────── -->
+<div id="tab-firewall" class="tab-pane hidden">
+
+  <div class="panel">
+    <div class="panel-title">UFW Status <span id="ufw-status-badge"></span></div>
+    <div class="fw-actions">
+      <input type="text" id="fw-ip-input" class="filter-input" placeholder="IP address to block/unblock…" style="width:260px">
+      <button class="btn btn-danger" onclick="blockIP()">⛔ Block IP</button>
+      <button class="btn btn-ok" onclick="unblockIP()">✓ Unblock IP</button>
+    </div>
+    <div id="fw-result" class="action-result"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Firewall Rules</div>
+    <div id="ufw-rules" class="log-scroll" style="max-height:400px"></div>
+  </div>
+
+</div>
+
+<!-- ── SERVICES ──────────────────────────────────────────────────── -->
+<div id="tab-services" class="tab-pane hidden">
+  <div class="panel">
+    <div class="panel-title">Service Management</div>
+    <div id="svc-result" class="action-result"></div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Service</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="svc-body"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="panel hidden" id="journal-panel">
+    <div class="panel-title">
+      Journal — <span id="journal-svc-name" class="c-cyan"></span>
+      <button class="btn btn-sm" onclick="refreshJournal()">↻ Refresh</button>
+      <button class="btn btn-sm" onclick="closeJournal()">✕ Close</button>
+    </div>
+    <div id="journal-content" class="log-scroll log-big"></div>
+  </div>
+</div>
+
+<!-- ── APPS ──────────────────────────────────────────────────────── -->
+<div id="tab-apps" class="tab-pane hidden">
+
+  <div class="sec-row">
+    <!-- Apache -->
+    <div class="panel sec-mini">
+      <div class="panel-title">Apache</div>
+      <div id="apache-info"><span class="c-muted">Loading…</span></div>
+    </div>
+    <!-- MySQL -->
+    <div class="panel sec-mini">
+      <div class="panel-title">MySQL</div>
+      <div id="mysql-info"><span class="c-muted">Loading…</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">
+      Package Updates
+      <span id="apt-badge" class="badge"></span>
+    </div>
+    <div id="apt-list"><span class="c-muted">Loading…</span></div>
+  </div>
+
+  <div class="panel" id="apache-log-panel">
+    <div class="panel-title">Apache Access Log Analysis <span class="panel-hint">(last 3000 lines)</span></div>
+    <div id="apache-log-info"><span class="c-muted">Loading…</span></div>
+  </div>
+
+</div>
+
+<!-- ── ADMIN ─────────────────────────────────────────────────────── -->
+<div id="tab-admin" class="tab-pane hidden">
+
+  <!-- Cron jobs -->
+  <div class="panel">
+    <div class="panel-title">Cron Jobs (root)</div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Schedule</th><th>Command</th><th></th></tr></thead>
+        <tbody id="cron-body"></tbody>
+      </table>
+    </div>
+    <div class="admin-form" style="margin-top:14px">
+      <div class="panel-title" style="margin-bottom:10px">Add Cron Job</div>
+      <div class="admin-row">
+        <input type="text" id="cron-schedule" class="filter-input" placeholder="* * * * *  (min hr dom mon dow)" style="width:220px">
+        <input type="text" id="cron-command"  class="filter-input" placeholder="command" style="flex:1">
+        <button class="btn btn-ok" onclick="addCron()">+ Add</button>
+      </div>
+      <div id="cron-result" class="action-result"></div>
+    </div>
+  </div>
+
+  <!-- SSH Keys -->
+  <div class="panel">
+    <div class="panel-title">SSH Authorized Keys (root)</div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Type</th><th>Comment</th><th>Key (preview)</th><th></th></tr></thead>
+        <tbody id="ssh-keys-body"></tbody>
+      </table>
+    </div>
+    <div class="admin-form" style="margin-top:14px">
+      <div class="panel-title" style="margin-bottom:10px">Add SSH Key</div>
+      <textarea id="ssh-key-input" class="filter-input key-textarea" placeholder="Paste public key (ssh-ed25519 / ssh-rsa …)"></textarea>
+      <div style="margin-top:8px">
+        <button class="btn btn-ok" onclick="addSshKey()">+ Add Key</button>
+      </div>
+      <div id="ssh-key-result" class="action-result"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── AUDIT ─────────────────────────────────────────────────────── -->
+<div id="tab-audit" class="tab-pane hidden">
+  <div class="panel">
+    <div class="panel-title">
+      Audit Log
+      <span class="panel-hint">All actions taken through this dashboard (30-day retention)</span>
+      <button class="btn btn-sm" onclick="fetchAudit()">↻ Refresh</button>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Time</th><th>Action</th><th>Detail</th><th>From IP</th><th>Result</th></tr></thead>
+        <tbody id="audit-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── LOGS ──────────────────────────────────────────────────────── -->
+<div id="tab-logs" class="tab-pane hidden">
+  <div class="panel">
+    <div class="panel-title">
+      Log Viewer
+      <select id="log-select" class="filter-input" style="width:200px">
+        <option value="auth">Auth Log</option>
+        <option value="syslog">Syslog</option>
+        <option value="apache_access">Apache Access (mryellowowl)</option>
+        <option value="apache_error">Apache Error (mryellowowl)</option>
+        <option value="apache_monitor">Apache Access (monitor)</option>
+        <option value="kern">Kernel Log</option>
+      </select>
+      <input type="text" id="log-filter" class="filter-input" placeholder="Filter…" style="width:200px">
+      <button class="btn" onclick="loadLog()">↻ Refresh</button>
+    </div>
+    <div id="log-content" class="log-scroll log-big"></div>
+  </div>
+</div>
+
+<!-- Confirm modal -->
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div class="modal">
+    <div id="modal-msg" class="modal-msg"></div>
+    <div class="modal-btns">
+      <button class="btn btn-danger" id="modal-confirm">Confirm</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/dashboard.js"></script>
+</body>
+</html>

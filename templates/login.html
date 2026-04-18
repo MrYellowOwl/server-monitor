@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Server Monitor — Login</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d0d0d;color:#e0e0e0;font-family:'Courier New',monospace;display:flex;align-items:center;justify-content:center;min-height:100vh}
+.card{background:#111;border:1px solid #1e1e1e;border-radius:6px;padding:40px;width:360px;box-shadow:0 0 40px rgba(0,255,153,0.05)}
+.logo{text-align:center;margin-bottom:30px}
+.logo h1{font-size:1.3rem;color:#00ff99;letter-spacing:2px}
+.logo p{font-size:.75rem;color:#555;margin-top:4px}
+label{display:block;font-size:.8rem;color:#888;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px}
+input[type=password]{width:100%;background:#0d0d0d;border:1px solid #2a2a2a;border-radius:4px;color:#e0e0e0;padding:10px 14px;font-family:inherit;font-size:.95rem;outline:none;transition:border .2s}
+input[type=password]:focus{border-color:#00ff99}
+button{width:100%;margin-top:20px;padding:12px;background:#00ff99;color:#0d0d0d;border:none;border-radius:4px;font-family:inherit;font-size:.95rem;font-weight:700;cursor:pointer;letter-spacing:1px;transition:opacity .2s}
+button:hover{opacity:.85}
+.error{margin-top:16px;padding:10px;background:rgba(255,50,50,.1);border:1px solid rgba(255,50,50,.3);border-radius:4px;color:#ff6464;font-size:.85rem;text-align:center}
+.hint{margin-top:14px;font-size:.7rem;color:#333;text-align:center}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <h1>⬡ SERVER MONITOR</h1>
+    <p>mryellowowl.com — restricted access</p>
+  </div>
+  <form method="POST">
+    <label for="pw">Password</label>
+    <input type="password" id="pw" name="password" autofocus autocomplete="current-password" placeholder="••••••••">
+    <button type="submit">AUTHENTICATE →</button>
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+  </form>
+  <p class="hint">Default password: <code>admin</code> — change via SM_PASSWORD env var</p>
+</div>
+</body>
+</html>
